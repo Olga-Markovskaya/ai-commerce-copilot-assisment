@@ -1,0 +1,158 @@
+.sidebar {
+  min-width: 0;
+  padding: 0.85rem;
+  border-right: 1px solid var(--border);
+  background: #f1f5f9;
+}
+
+.newChatButton {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.newChatButton:hover {
+  border-color: #bfdbfe;
+  color: var(--accent);
+}
+
+.conversationList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: calc(100% - 3.5rem);
+  overflow-y: auto;
+}
+
+.loadingMessage {
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.errorState {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.errorIcon {
+  font-size: 1.5rem;
+}
+
+.errorTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.retryButton {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retryButton:hover {
+  border-color: var(--accent);
+  background: #f0f9ff;
+}
+
+.serverInfo {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-family: monospace;
+}
+
+.newChatButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.conversationItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.conversationItem[data-active="true"] {
+  border-color: #bfdbfe;
+  background: #dbeafe;
+}
+
+.conversationButton {
+  min-width: 0;
+  padding: 0.4rem;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversationTitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.deleteButton {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.3rem 0.45rem;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+@media (max-width: 700px) {
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .conversationList {
+    max-height: 8rem;
+  }
+}

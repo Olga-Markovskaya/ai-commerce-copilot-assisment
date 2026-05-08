@@ -1,0 +1,242 @@
+/* Wrapper gives the scroll list a positioning context for the floating button. */
+.messageListOuter {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Virtuoso-managed scroll container. Fills the same space .messageList used to
+   occupy. Virtuoso handles overflow and internal flex layout itself; we only
+   need to size this element within its flex parent. */
+.virtuosoList {
+  min-height: 0;
+  flex: 1;
+}
+
+/* Always-rendered div above the first message item (via Virtuoso Header).
+   Provides consistent top padding for the list and wraps the pagination
+   loading indicator when older pages are being fetched. */
+.listHeader {
+  padding: 0.75rem 0 0;
+}
+
+/* Loading text shown at the very top while fetchPreviousPage is in flight. */
+.loadingOlderMessages {
+  margin: 0;
+  padding: 0.25rem 1rem 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Wrapper for each virtualized message item.
+   Provides horizontal padding and vertical gap between messages,
+   replacing the `padding` + `gap` that lived on the old flex container.
+   display:flex + flex-direction:column restores the flex parent context that
+   .messageList used to provide, so align-self: flex-end / flex-start on
+   .userMessage and .messageBubble[data-role] keep working correctly. */
+.messageItem {
+  display: flex;
+  flex-direction: column;
+  padding: 0 1rem 0.75rem;
+}
+
+/* Kept for reference — no longer used by the virtualized list. */
+.messageList {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+/* Scroll-to-bottom button — floats in the bottom-right of the visible list area. */
+.scrollToBottomButton {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  transition: filter 0.15s ease;
+  z-index: 10;
+}
+
+.scrollToBottomButton:hover {
+  filter: brightness(1.1);
+}
+
+.emptyState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.errorState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+  gap: 1rem;
+}
+
+.errorIcon {
+  font-size: 2rem;
+}
+
+.errorTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.errorMessage {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+.retryButton {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retryButton:hover {
+  border-color: var(--accent);
+  background: #f0f9ff;
+}
+
+.serverInfo {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-family: monospace;
+}
+
+.emptyState h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.emptyState p {
+  max-width: 28rem;
+  margin: 0 auto;
+}
+
+.messageBubble {
+  max-width: 78%;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  background: #f1f5f9;
+}
+
+/* User messages - clean and compact */
+.userMessage {
+  max-width: 75%;
+  align-self: flex-end;
+  background: var(--accent);
+  color: white;
+  padding: 0.6rem 0.8rem;
+  border-radius: 16px 16px 4px 16px;
+  margin-bottom: 0.5rem;
+}
+
+.userLabel {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.userContent {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.messageBubble[data-role="user"] {
+  align-self: flex-end;
+  color: #fff;
+  background: var(--accent);
+}
+
+.messageBubble[data-role="assistant"] {
+  align-self: flex-start;
+}
+
+.messageBubble p {
+  margin: 0;
+}
+
+.messageRole {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.typingIndicator {
+  max-width: 78%;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  background: #f1f5f9;
+  align-self: flex-start;
+  opacity: 0.8;
+}
+
+.typingRole {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.typingText {
+  margin: 0;
+  font-style: italic;
+  color: var(--muted);
+}
+
+@media (max-width: 700px) {
+  .messageBubble {
+    max-width: 90%;
+  }
+}

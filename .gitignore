@@ -1,0 +1,19 @@
+node_modules
+dist
+build
+*.local
+.env
+.env.local
+server/.env
+server/.env.local
+client/.env
+client/.env.local
+.DS_Store
+*.log
+coverage
+.vite
+
+# SQLite database files
+server/data/
+*.db
+*.sqlite

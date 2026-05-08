@@ -1,0 +1,213 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.error h2 {
+  margin: 0 0 1rem 0;
+  color: #dc2626;
+  font-size: 1.5rem;
+}
+
+.error p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.productDetails {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: start;
+}
+
+.imageSection {
+  position: sticky;
+  top: 2rem;
+}
+
+.productImage {
+  width: 100%;
+  max-width: 500px;
+  /* aspect-ratio reserves the exact display height before the image loads,
+     preventing layout shift (CLS). DummyJSON product thumbnails are square. */
+  aspect-ratio: 1 / 1;
+  height: auto;
+  /* contain keeps the full product visible; cover would crop it. */
+  object-fit: contain;
+  /* Matches the card placeholder colour while the image is in flight. */
+  background: #f9fafb;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.infoSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.brand {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.category {
+  font-size: 0.9rem;
+  color: #6b7280;
+  text-transform: capitalize;
+  padding: 0.25rem 0.75rem;
+  background: #f3f4f6;
+  border-radius: 6px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.priceSection {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.price {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.discountedPrice {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.originalPrice {
+  font-size: 1.5rem;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.savings {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stars {
+  font-size: 1.2rem;
+}
+
+.ratingValue {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.availability {
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.stockInfo {
+  color: #059669;
+  font-weight: 500;
+}
+
+.description h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.description p {
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.actionSection {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.addToCartButton {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  width: 100%;
+  max-width: 400px;
+}
+
+.addToCartButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.addToCartButton:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .productDetails {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .imageSection {
+    position: static;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .price,
+  .discountedPrice {
+    font-size: 1.5rem;
+  }
+
+  .originalPrice {
+    font-size: 1.2rem;
+  }
+}

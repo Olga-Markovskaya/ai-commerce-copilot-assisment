@@ -1,0 +1,58 @@
+.carouselContainer {
+  width: 100%;
+  position: relative;
+}
+
+.carousel {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 0.5rem 0 1rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.carousel::-webkit-scrollbar {
+  height: 6px;
+}
+
+.carousel::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.carousel::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.carousel::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.carouselItem {
+  flex: 0 0 auto;
+  width: 240px;
+  height: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 700px) {
+  .carouselItem {
+    width: 200px;
+  }
+  
+  .carousel {
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 500px) {
+  .carouselItem {
+    width: 180px;
+  }
+  
+  .carousel {
+    gap: 0.5rem;
+  }
+}
