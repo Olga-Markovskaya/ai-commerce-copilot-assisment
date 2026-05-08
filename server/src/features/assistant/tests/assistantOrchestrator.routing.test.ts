@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AssistantOrchestrator } from "../assistant.orchestrator.js";
 import type { ProductSearchService } from "../../products/productSearch.service.js";
 import type { ProductCard } from "../../products/product.types.js";
+import type { RecentMessage } from "../assistant.types.js";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -238,5 +239,96 @@ describe("product search failure — stays in shopping scope", () => {
     expect(typeof reply.content).toBe("string");
     // Fallback returns empty products or undefined — never a broken state
     expect(reply.products == null || Array.isArray(reply.products)).toBe(true);
+  });
+});
+
+// ─── 8. Product-context follow-ups — operate on previous product cards ────────
+
+describe("product-context follow-ups — no fresh search", () => {
+  const previousProducts: ProductCard[] = [
+    { ...makeProduct(10, "Phone A"), price: 499, rating: 4.1, category: "smartphones" },
+    { ...makeProduct(11, "Phone B"), price: 399, rating: 4.8, category: "smartphones" },
+    { ...makeProduct(12, "Phone C"), price: 299, rating: 4.3, category: "smartphones" },
+  ];
+
+  function makeRecentWithProducts(): RecentMessage[] {
+    return [
+      { role: "user", content: "Find me a phone under $500" },
+      { role: "assistant", content: "Here are some options.", products: previousProducts },
+    ];
+  }
+
+  it("'Which one has the best rating?' answers from previous products without calling search", async () => {
+    const reply = await orchestrator.processUserMessage({
+      conversationId: "c1",
+      userMessage: "Which one has the best rating?",
+      recentMessages: makeRecentWithProducts(),
+    });
+
+    expect(mockSearchProducts).not.toHaveBeenCalled();
+    expect(reply.products?.length).toBe(1);
+    expect(reply.products?.[0]?.id).toBe(11); // highest rating
+    expect(reply.products?.every((p) => previousProducts.some((x) => x.id === p.id))).toBe(true);
+  });
+
+  it("'Compare the top 2 options' compares only from previous products without calling search", async () => {
+    const reply = await orchestrator.processUserMessage({
+      conversationId: "c1",
+      userMessage: "Compare the top 2 options",
+      recentMessages: makeRecentWithProducts(),
+    });
+
+    expect(mockSearchProducts).not.toHaveBeenCalled();
+    expect(reply.products?.length).toBe(2);
+    expect(reply.products?.map((p) => p.id)).toEqual([10, 11]); // preserves shown order
+  });
+
+  it("chains: best rating (subset) then compare top 2 uses the broader primary set", async () => {
+    const recentMessages: RecentMessage[] = [
+      { role: "user", content: "Find me a phone under $500" },
+      { role: "assistant", content: "Here are some options.", products: previousProducts },
+      { role: "user", content: "Which one has the best rating?" },
+      {
+        role: "assistant",
+        content: 'From the products shown above, the highest-rated option is "Phone B".',
+        products: [previousProducts[1]!], // subset follow-up
+      },
+    ];
+
+    const reply = await orchestrator.processUserMessage({
+      conversationId: "c1",
+      userMessage: "Compare the top 2 options",
+      recentMessages,
+    });
+
+    expect(mockSearchProducts).not.toHaveBeenCalled();
+    expect(reply.products?.length).toBe(2);
+    // Should compare from the original broader set, not the 1-item subset.
+    expect(reply.products?.map((p) => p.id)).toEqual([10, 11]);
+  });
+
+  it("'Only show the cheapest ones' filters within previous products without calling search", async () => {
+    const reply = await orchestrator.processUserMessage({
+      conversationId: "c1",
+      userMessage: "Only show the cheapest ones",
+      recentMessages: makeRecentWithProducts(),
+    });
+
+    expect(mockSearchProducts).not.toHaveBeenCalled();
+    expect(reply.products?.length).toBeGreaterThan(0);
+    expect(reply.products?.[0]?.id).toBe(12); // cheapest
+    expect(reply.products?.every((p) => previousProducts.some((x) => x.id === p.id))).toBe(true);
+  });
+
+  it("'Recommend only products that are shown in the product cards' does not trigger clarification or search", async () => {
+    const reply = await orchestrator.processUserMessage({
+      conversationId: "c1",
+      userMessage: "Recommend only products that are shown in the product cards",
+      recentMessages: makeRecentWithProducts(),
+    });
+
+    expect(mockSearchProducts).not.toHaveBeenCalled();
+    expect(reply.content).toMatch(/only use the products shown/i);
+    expect(reply.products?.map((p) => p.id)).toEqual(previousProducts.map((p) => p.id));
   });
 });

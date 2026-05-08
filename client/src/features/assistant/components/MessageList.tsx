@@ -7,33 +7,15 @@ import { getExpectedServerUrl } from "../utils/apiError";
 import type { ChatMessage } from "../api/conversationApi";
 import styles from "@shared/styles/assistant/message-list.module.css";
 
-// Virtual index assigned to the first item in a fresh list. The number is large
-// enough that any realistic conversation (< 100 000 messages) never decrements
-// it below zero when older pages are prepended.
+// Large enough that realistic prepends don't underflow.
 const INITIAL_VIRTUAL_INDEX = 100_000;
 
-// Distance from the bottom (px) used by Virtuoso for both atBottomStateChange
-// and the isAtBottom value passed to followOutput.
+// Used by atBottomStateChange + followOutput.
 const AT_BOTTOM_THRESHOLD_PX = 150;
 
-// ─── Synthetic typing item ─────────────────────────────────────────────────────
-//
-// WHY data array instead of Virtuoso Footer slot:
-//
-//   Virtuoso maintains its scroll-height model from DATA ITEMS only. The Footer
-//   slot is a DOM sibling rendered outside that model — its height is tracked by
-//   a separate ResizeObserver that can fire across multiple frames. Until that
-//   observer fires, scrollTo(MAX_SAFE_INTEGER) and scrollToIndex("LAST") are both
-//   clamped to the scroll container height BEFORE the footer — the typing
-//   indicator stays clipped no matter how large the scroll target.
-//
-//   Adding the typing indicator as the last data item solves this completely:
-//   - It has a real item index → scrollToIndex("LAST") reliably reaches it
-//   - Virtuoso measures it as part of the list → total scroll height is correct
-//   - followOutput fires when it is appended → near-bottom auto-scroll is free
-//
-//   The item is purely local render state; it never enters the React Query
-//   cache, Zustand store, or any backend model.
+// Typing indicator is a synthetic Virtuoso data item (not Footer) so it has a real
+// index and is included in Virtuoso's scroll-height model; `scrollToIndex("LAST")`
+// reliably reaches it.
 
 const TYPING_ITEM_ID = "__assistant_typing__" as const;
 
@@ -42,15 +24,10 @@ type TypingItem = {
   isTyping: true;
 };
 
-// Stable singleton — the same object reference every render avoids
-// invalidating the displayItems useMemo when neither messages nor isSending
-// has changed.
+// Stable singleton to avoid needless memo churn.
 const TYPING_ITEM: TypingItem = { id: TYPING_ITEM_ID, isTyping: true };
 
 type DisplayItem = ChatMessage | TypingItem;
-
-// ─── Header rendered inside the Virtuoso scroller ─────────────────────────────
-// Defined outside MessageList so Virtuoso always receives a stable reference.
 
 type VirtuosoContext = {
   isFetchingPreviousPage: boolean;
@@ -66,29 +43,12 @@ function ListHeader({ context }: { context?: VirtuosoContext }) {
   );
 }
 
-// ─── Stable item key ──────────────────────────────────────────────────────────
-// Without computeItemKey, Virtuoso uses array index as the React reconciliation
-// key. When the TYPING_ITEM transitions to a real ChatMessage at the same
-// array position, React receives the same index key and tries to DIFF two
-// structurally incompatible subtrees (typing indicator HTML vs MessageBubble
-// HTML) instead of unmounting the old and mounting the new. This produces
-// "visually mixed" output where DOM nodes from both subtrees bleed into each
-// other's positions.
-//
-// Using item.id as the key forces React to:
-//   - Unmount the TYPING_ITEM component (key "__assistant_typing__") when it
-//     is removed from displayItems.
-//   - Mount a fresh ChatMessage component (key = server UUID) in its place.
-//   - Also correctly handle the optimistic → real user message swap
-//     (key "optimistic-<ts>" → key "<uuid>") without DOM reuse.
+// computeItemKey is required so React doesn't reuse DOM when the synthetic typing
+// item is replaced by a real ChatMessage at the same array index.
 
 function computeItemKey(_index: number, item: DisplayItem): React.Key {
   return item.id;
 }
-
-// ─── Item renderer ─────────────────────────────────────────────────────────────
-// Defined at module level so Virtuoso always receives a stable function reference.
-// Handles both real ChatMessages and the synthetic TypingItem.
 
 function renderItem(_index: number, item: DisplayItem) {
   if ("isTyping" in item) {
@@ -108,34 +68,20 @@ function renderItem(_index: number, item: DisplayItem) {
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function MessageList() {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-  // Virtual index of the first item in the `data` array.
-  //
-  // How prepend scroll-preservation works without useLayoutEffect:
-  //   - Initial list: firstItemIndex = INITIAL_VIRTUAL_INDEX, 10 items
-  //     → virtual indices 100 000 – 100 009
-  //   - fetchPreviousPage prepends 10 older messages
-  //   - We decrement firstItemIndex by 10 → 99 990
-  //     → virtual indices 99 990 – 100 009
-  //   - Virtuoso detects the shift and internally compensates scrollTop so the
-  //     previously visible item stays at the same pixel position.
+  // firstItemIndex is used so prepending older pages preserves scroll position.
   const [firstItemIndex, setFirstItemIndex] = useState(INITIAL_VIRTUAL_INDEX);
 
-  // Snapshot of messages.length captured at the start of fetchPreviousPage.
-  // Lets us compute how many items were prepended once the fetch completes.
+  // Snapshot for prepend delta.
   const messageCountBeforeFetchRef = useRef<number | null>(null);
 
-  // Mirrors isNearBottom state in a ref so it can be read synchronously in
-  // callbacks without stale closures.
+  // Mirror in a ref for sync reads in callbacks.
   const isNearBottomRef = useRef(true);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
-  // Tracks the previous conversation ID to detect a real switch and reset
-  // scroll state synchronously during render (before Virtuoso mounts).
+  // Reset state synchronously on conversation switch.
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   const activeConversationId = useAssistantStore((s) => s.activeConversationId);
@@ -151,28 +97,13 @@ export function MessageList() {
     fetchPreviousPage,
   } = useConversationMessages(activeConversationId);
 
-  // ── Build display array ───────────────────────────────────────────────────
-  // The typing item is appended as the last element while a send is in flight.
-  // It is render-only: not persisted, not cached, not sent to the backend.
   const displayItems = useMemo<DisplayItem[]>(
     () => (isSending ? [...messages, TYPING_ITEM] : messages),
     [messages, isSending],
   );
 
-  // ── Synchronous reset on conversation switch (derived-state pattern) ───────
-  //
-  // WHY synchronous instead of useEffect:
-  //   <Virtuoso key={activeConversationId} ... /> forces a full remount whenever
-  //   the conversation changes. `initialTopMostItemIndex` then starts the new
-  //   conversation at the bottom. For this to work correctly, `firstItemIndex`
-  //   MUST already be INITIAL_VIRTUAL_INDEX on the render where Virtuoso mounts —
-  //   a stale value from the previous conversation would be interpreted by Virtuoso
-  //   as "N items were prepended" and shift the viewport.
-  //
-  //   useEffect fires after paint, so the new Virtuoso would mount with the stale
-  //   value and glitch. React's derived-state pattern (setState during render)
-  //   causes an immediate re-render before commit, ensuring the value is correct
-  //   on the render that actually reaches the DOM.
+  // Reset scroll state on conversation switch; Virtuoso is remounted via
+  // key={activeConversationId}, so firstItemIndex must be reset before mount.
   if (prevConversationIdRef.current !== activeConversationId) {
     prevConversationIdRef.current = activeConversationId;
     // Refs can be mutated synchronously — no re-render needed.
@@ -188,20 +119,8 @@ export function MessageList() {
     }
   }
 
-  // ── Adjust firstItemIndex after older messages are prepended ──────────────
-  // Tracks the isFetchingPreviousPage true → false transition.
-  // When the fetch completes and messages.length grew, decrement firstItemIndex
-  // by the number of new messages so Virtuoso keeps the viewport pinned.
-  //
-  // Uses messages.length (real messages only), NOT displayItems.length, so
-  // the synthetic typing item never skews the prepend offset calculation.
-  //
-  // Also detects "page trim" (messages.length shrinks outside a
-  // fetchPreviousPage cycle). This happens in sendMessage, which trims the
-  // infinite query to 1 page before invalidating, to avoid multi-page cursor
-  // misalignment. When it occurs, firstItemIndex must reset to
-  // INITIAL_VIRTUAL_INDEX so Virtuoso doesn't map the new (smaller) array to
-  // the stale, lower virtual indices left over from the previous prepend.
+  // Uses messages.length (real messages only), not displayItems.length, so the
+  // synthetic typing item doesn't skew prepend offset calculations.
   const prevMessagesLengthRef = useRef<number | null>(null);
   useEffect(() => {
     const prevLen = prevMessagesLengthRef.current;
@@ -223,15 +142,6 @@ export function MessageList() {
     }
   }, [isFetchingPreviousPage, messages.length]);
 
-  // ── Scroll to typing indicator when send starts ───────────────────────────
-  // When isSending becomes true, TYPING_ITEM is appended to displayItems.
-  // followOutput handles the scroll automatically when the user is already near
-  // the bottom. This effect covers the case where the user scrolled far up to
-  // read history — sending is an explicit intent, so we always scroll down.
-  //
-  // Because TYPING_ITEM is now a data item (not a Footer slot), scrollToIndex
-  // ("LAST") reliably targets it. One rAF defers until Virtuoso has processed
-  // the updated data array in the same browser frame as the React render.
   useEffect(() => {
     if (!isSending) return;
     const id = requestAnimationFrame(() => {
@@ -240,19 +150,12 @@ export function MessageList() {
     return () => cancelAnimationFrame(id);
   }, [isSending]);
 
-  // ── Virtuoso callbacks ────────────────────────────────────────────────────
-
   const handleStartReached = useCallback(() => {
     if (hasPreviousPage && !isFetchingPreviousPage) {
       fetchPreviousPage();
     }
   }, [hasPreviousPage, isFetchingPreviousPage, fetchPreviousPage]);
 
-  // followOutput: called when data grows at the bottom (new items arrive).
-  // Returns "smooth" to follow if already near the bottom; false otherwise.
-  // Fires when TYPING_ITEM is appended (isSending → true) AND when real
-  // messages arrive after the refetch. Prepend via firstItemIndex does NOT
-  // trigger followOutput, so upward pagination never yanks the user down.
   const handleFollowOutput = useCallback(
     (isAtBottom: boolean): "smooth" | false => (isAtBottom ? "smooth" : false),
     [],
@@ -273,8 +176,6 @@ export function MessageList() {
     () => ({ isFetchingPreviousPage }),
     [isFetchingPreviousPage],
   );
-
-  // ── Early returns ─────────────────────────────────────────────────────────
 
   if (error) {
     const isNetworkError = error.type === "network";
@@ -325,25 +226,18 @@ export function MessageList() {
   return (
     <div className={styles.messageListOuter}>
       <Virtuoso
-        // key forces a full Virtuoso remount on every conversation switch.
-        // Without it, Virtuoso reuses its internal scroll state across
-        // conversations (old scrollTop leaks into the new conversation).
-        // With it, initialTopMostItemIndex fires fresh each time, reliably
-        // landing the new conversation at the bottom.
+        // key remounts Virtuoso on conversation switch to avoid reusing scroll state.
         key={activeConversationId ?? "none"}
         ref={virtuosoRef}
         className={styles.virtuosoList}
         aria-live="polite"
         data={displayItems}
-        // Start at the last item (bottom) on mount. Only applies once per
-        // Virtuoso instance; followOutput takes over for subsequent items.
         initialTopMostItemIndex={displayItems.length - 1}
         firstItemIndex={firstItemIndex}
         startReached={handleStartReached}
         followOutput={handleFollowOutput}
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={AT_BOTTOM_THRESHOLD_PX}
-        // Render 200 px of items beyond the visible area above and below.
         overscan={200}
         context={virtuosoContext}
         components={{ Header: ListHeader }}

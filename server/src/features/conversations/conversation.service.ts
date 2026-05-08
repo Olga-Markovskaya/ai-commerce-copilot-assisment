@@ -40,7 +40,6 @@ export class ConversationService {
       createdAt: new Date().toISOString(),
     };
 
-    // Only add products to assistant messages
     if (role === "assistant" && products && products.length > 0) {
       message.products = products;
     }
@@ -83,7 +82,6 @@ export class ConversationService {
     return this.repository.updateConversationTitle(conversationId, title);
   }
 
-  // Helper to generate title from first user message
   generateTitleFromMessage(content: string): string {
     const title = content.trim().slice(0, 40);
     return title || "New chat";

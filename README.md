@@ -23,7 +23,7 @@ This was built as an AI commerce copilot take-home assessment. The objective was
 | In-chat product rendering | `ProductCard[]` returned with each assistant message (title, description, price, image, rating) |
 | Conversation persistence | SQLite-backed conversation and message history; survives page refresh |
 | Conversation management | Create conversation, list past conversations, continue existing conversation, delete conversation |
-| Tests / evaluation | 117 Vitest tests covering assistant routing, intent analysis, grounding guard, ranking stability, HTTP layer |
+| Tests / evaluation | 304 Vitest tests covering assistant routing, intent analysis, grounding guard, ranking stability, HTTP layer |
 | Local runnable app | `npm install` · `npm run dev` |
 
 ---
@@ -158,7 +158,7 @@ Long conversations are the primary performance concern for a chat widget. Two la
 
 **Cursor-based pagination**
 
-The backend exposes `GET /conversations/:id/messages?limit=30&before=<cursor>`. The initial load fetches the latest page only. Older messages are fetched on demand as the user scrolls upward, using TanStack Query's `useInfiniteQuery` with `fetchPreviousPage`. Pagination uses the message `id` as the cursor — stable, index-friendly, and immune to the offset-drift problem (offset pagination breaks when messages are inserted while the user is reading).
+The backend exposes `GET /conversations/:id/messages?limit=30&before=<cursor>`. The initial load fetches the latest page only. Older messages are fetched on demand as the user scrolls upward, using TanStack Query's `useInfiniteQuery` with `fetchPreviousPage`. Pagination uses SQLite's `rowid` as the cursor — a monotonically incrementing integer assigned in insertion order, making it stable, index-friendly, and immune to the offset-drift problem (offset pagination breaks when messages are inserted while the user is reading). UUIDs are not used as cursors because they are not lexicographically ordered by insertion time.
 
 **Virtualization with react-virtuoso**
 
@@ -364,7 +364,7 @@ cd server
 npm test
 ```
 
-117 tests · 9 files · all deterministic · no network · no OpenAI · no SQLite.
+304 tests · 22 files · all deterministic · no network · no OpenAI · no SQLite.
 
 The suite is not just a coverage metric. Each file targets a specific invariant:
 

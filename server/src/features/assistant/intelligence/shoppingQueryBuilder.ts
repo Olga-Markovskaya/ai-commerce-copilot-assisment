@@ -24,7 +24,6 @@ export class ShoppingQueryBuilder {
 
     if (isGiftLike) {
       if (queryParts.length === 0) {
-        // No direct product term — build query from context
         if (analysis.genderHint === "women") {
           queryParts.push("women", "gift");
         } else if (analysis.genderHint === "men") {
@@ -32,20 +31,17 @@ export class ShoppingQueryBuilder {
         } else {
           queryParts.push("gift");
         }
-        // Add top candidate category names as additional search terms
         const topCats = analysis.candidateCategories
           .slice(0, 2)
           .map((c) => c.replace(/-/g, " "));
         queryParts.push(...topCats);
       } else {
-        // Has product terms + gift context
         queryParts.push("gift");
         if (analysis.genderHint === "women") queryParts.push("women");
         else if (analysis.genderHint === "men") queryParts.push("men");
       }
     }
 
-    // Work/office context enriches the query when not already covered
     if (
       analysis.occasion === "work" &&
       !queryParts.some((t) => t.includes("work") || t.includes("office"))
@@ -53,18 +49,16 @@ export class ShoppingQueryBuilder {
       queryParts.push("work");
     }
 
-    // Pad thin queries with a few expanded synonyms
     if (queryParts.length < 2 && analysis.expandedTerms.length > 0) {
       queryParts.push(...analysis.expandedTerms.slice(0, 2));
     }
 
-    // Fallback to the full normalized query
     const query =
       queryParts.length > 0
         ? dedupe(queryParts).join(" ")
         : analysis.normalizedQuery;
 
-    // Only use a single category when the match is confident and direct
+    // Use a single category only when the match is confident and direct.
     const category =
       analysis.confidence === "high" && analysis.detectedCategory
         ? analysis.detectedCategory

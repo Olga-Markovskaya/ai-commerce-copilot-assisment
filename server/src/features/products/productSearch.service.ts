@@ -27,7 +27,6 @@ export class ProductSearchService {
 
   async searchProducts(params: ProductSearchParams): Promise<ProductSearchResult> {
     try {
-      // Convert ProductSearchParams to ProductRetrievalParams
       const retrievalParams = {
         query: params.query,
         category: params.category,
@@ -35,11 +34,9 @@ export class ProductSearchService {
         maxPrice: params.maxPrice,
         sortBy: params.sortBy,
         limit: params.limit || 6,
-        skip: 0, // Copilot recommendations are single-page; no pagination needed in the chat UX.
-                 // ProductRetrievalParams already has skip if a future caller requires it.
+        skip: 0,
       };
 
-      // Delegate to retrieval strategy
       return await this.retrievalStrategy.search(retrievalParams);
     } catch (error) {
       console.error("Product search failed:", error);

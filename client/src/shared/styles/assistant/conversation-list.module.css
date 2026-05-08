@@ -19,7 +19,7 @@
 }
 
 .newChatButton:hover {
-  border-color: #bfdbfe;
+  border-color: var(--accent-border);
   color: var(--accent);
 }
 
@@ -106,8 +106,8 @@
 }
 
 .conversationItem[data-active="true"] {
-  border-color: #bfdbfe;
-  background: #dbeafe;
+  border-color: var(--accent-border);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.10), rgba(167, 139, 250, 0.10));
 }
 
 .conversationButton {

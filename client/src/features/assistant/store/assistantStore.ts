@@ -86,16 +86,19 @@ function getMostRecentlyUpdatedConversation(conversations: ConversationSummary[]
   )[0];
 }
 
+/** Most recent conversation that has at least one message, or undefined if none exist. */
+function getMostRecentConversationWithMessages(conversations: ConversationSummary[]) {
+  return getMostRecentlyUpdatedConversation(conversations.filter((c) => c.messageCount > 0));
+}
+
 export const useAssistantStore = create<AssistantState>()(
   persist(
     (set, get) => ({
-      // Persisted
       isOpen: false,
       activeConversationId: null,
       panelPosition: null,
       panelSize: null,
 
-      // Transient
       isSending: false,
       isConversationDrawerOpen: false,
       error: null,
@@ -121,14 +124,23 @@ export const useAssistantStore = create<AssistantState>()(
           }
 
           const { activeConversationId } = get();
-          const activeExists = conversations.some((c) => c.id === activeConversationId);
+          const activeConv = conversations.find((c) => c.id === activeConversationId);
 
-          if (activeExists && activeConversationId) {
-            get().setActiveConversation(activeConversationId);
+          if (activeConv) {
+            // If the persisted active conversation is empty and a meaningful one
+            // exists, prefer the meaningful one to avoid landing on a blank chat.
+            if (activeConv.messageCount === 0) {
+              const meaningful = getMostRecentConversationWithMessages(conversations);
+              get().setActiveConversation(meaningful?.id ?? activeConv.id);
+            } else {
+              get().setActiveConversation(activeConv.id);
+            }
           } else {
-            const mostRecent = getMostRecentlyUpdatedConversation(conversations);
-            if (mostRecent) {
-              get().setActiveConversation(mostRecent.id);
+            const preferred =
+              getMostRecentConversationWithMessages(conversations) ??
+              getMostRecentlyUpdatedConversation(conversations);
+            if (preferred) {
+              get().setActiveConversation(preferred.id);
             } else {
               await get().createConversation();
             }
@@ -154,6 +166,16 @@ export const useAssistantStore = create<AssistantState>()(
       createConversation: async () => {
         try {
           set({ error: null });
+
+          // Reuse an existing empty conversation rather than accumulating blank ones.
+          const cached =
+            queryClient.getQueryData<ConversationSummary[]>(conversationsQueryKey) ?? [];
+          const existingEmpty = cached.find((c) => c.messageCount === 0);
+          if (existingEmpty) {
+            set({ activeConversationId: existingEmpty.id, isConversationDrawerOpen: false });
+            return;
+          }
+
           const conversation = await ConversationApiService.createConversation();
           set({
             activeConversationId: conversation.id,
@@ -180,26 +202,35 @@ export const useAssistantStore = create<AssistantState>()(
       deleteConversation: async (conversationId) => {
         try {
           set({ error: null });
+
+          const cached =
+            queryClient.getQueryData<ConversationSummary[]>(conversationsQueryKey) ?? [];
+
+          // Always keep at least one conversation so the app is never in an empty state.
+          if (cached.length <= 1) {
+            return;
+          }
+
           await ConversationApiService.deleteConversation(conversationId);
 
           // We know exactly what the new list looks like: the current cache minus
           // the deleted item. Update the cache directly so the UI reflects the
           // change instantly without a round-trip. A background invalidation then
           // confirms the server state.
-          const cached =
-            queryClient.getQueryData<ConversationSummary[]>(conversationsQueryKey) ?? [];
           const remaining = cached.filter((c) => c.id !== conversationId);
           queryClient.setQueryData(conversationsQueryKey, remaining);
           queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
 
           const { activeConversationId } = get();
-
           if (remaining.length === 0) {
             await get().createConversation();
           } else if (activeConversationId === conversationId) {
-            const mostRecent = getMostRecentlyUpdatedConversation(remaining);
-            if (mostRecent) {
-              get().setActiveConversation(mostRecent.id);
+            // Prefer switching to a conversation with messages over an empty one.
+            const next =
+              getMostRecentConversationWithMessages(remaining) ??
+              getMostRecentlyUpdatedConversation(remaining);
+            if (next) {
+              get().setActiveConversation(next.id);
             }
           }
         } catch (error) {

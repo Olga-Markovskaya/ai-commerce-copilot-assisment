@@ -4,7 +4,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 const router = Router();
 
-// POST /api/chat - Send message to assistant
 router.post("/", asyncHandler(ChatController.handleChatMessage));
 
 export default router;

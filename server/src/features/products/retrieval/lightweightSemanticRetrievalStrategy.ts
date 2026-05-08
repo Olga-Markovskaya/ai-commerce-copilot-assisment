@@ -22,7 +22,6 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
 
   async search(params: ProductRetrievalParams): Promise<ProductRetrievalResult> {
     try {
-      // If no query, just use the DummyJSON strategy directly
       if (!params.query?.trim()) {
         return await this.dummyJsonStrategy.search(params);
       }
@@ -30,24 +29,20 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
       const query = params.query.trim();
       console.log(`🧠 Semantic search for: "${query}"`);
 
-      // Extract semantic hints from the query
       const semanticHints = extractSemanticHints(query);
       const { expandedTerms, maxPrice } = semanticHints;
 
-      // Override maxPrice if extracted from query (e.g., "under 100")
       const effectiveParams = {
         ...params,
         maxPrice: maxPrice || params.maxPrice
       };
 
-      // Collect products from multiple search strategies
       const allProducts = new Map<number, ProductCard>();
 
-      // 1. Direct query search
       try {
         const directResults = await this.dummyJsonStrategy.search({
           ...effectiveParams,
-          limit: 30 // Fetch more for better reranking
+          limit: 30,
         });
         
         for (const product of directResults.products) {
@@ -58,15 +53,10 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
         console.log("⚠️ Direct search failed:", error);
       }
 
-      // 2 + 3. Run expanded-term and category searches concurrently.
-      //   All calls are independent — they share no state and results are merged
-      //   into the same Map which is safe here because we await all of them before
-      //   reading the Map in step 4.
       const candidateTerms = this.selectBestCandidateTerms(expandedTerms, query);
       const detectedCategory = this.detectCategory(expandedTerms);
 
       const secondarySearches: Promise<void>[] = [
-        // Expanded term searches (up to 5 terms)
         ...candidateTerms
           .filter(term => term !== query.toLowerCase())
           .map(term =>
@@ -79,7 +69,6 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
               .catch((err: unknown) => console.log(`⚠️ Expanded search for "${term}" failed:`, err)),
           ),
 
-        // Category-based fallback (1 additional call, only if a category was detected)
         ...(detectedCategory && !params.category
           ? [
               this.dummyJsonStrategy
@@ -95,7 +84,6 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
 
       await Promise.allSettled(secondarySearches);
 
-      // Convert map to array and score all products
       const candidateProducts = Array.from(allProducts.values());
       const scoredProducts = candidateProducts.map(product => ({
         product,
@@ -104,16 +92,13 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
 
       console.log(`🧠 Semantic analysis: ${candidateProducts.length} unique products to score`);
 
-      // Sort by semantic relevance score (descending), with id asc as stable tie-breaker
       scoredProducts.sort(byScoredProductDescIdAsc);
 
-      // Apply original sorting if semantic scores are tied or if sortBy is specified
       let sortedProducts = scoredProducts.map(item => item.product);
       if (params.sortBy && params.sortBy !== 'relevance') {
         sortedProducts = this.applySorting(sortedProducts, params.sortBy);
       }
 
-      // Apply pagination
       const limit = params.limit || 6;
       const skip = params.skip || 0;
       const paginatedProducts = sortedProducts.slice(skip, skip + limit);
@@ -127,7 +112,6 @@ export class LightweightSemanticRetrievalStrategy implements ProductRetrievalStr
 
     } catch (error) {
       console.error("Semantic product search failed:", error);
-      // Fallback to basic DummyJSON strategy
       console.log("🔁 Falling back to basic search...");
       return await this.dummyJsonStrategy.search(params);
     }

@@ -39,28 +39,23 @@ export function extractSemanticHints(query: string): {
 } {
   const lowerQuery = query.toLowerCase().trim();
   const expandedTerms: string[] = [];
-  
-  // Add original query terms
+
   expandedTerms.push(...lowerQuery.split(/\s+/));
-  
-  // Find matching synonym groups and expand
+
   for (const [groupName, synonyms] of Object.entries(SYNONYM_GROUPS)) {
-    const hasMatch = synonyms.some(synonym => 
+    const hasMatch = synonyms.some(synonym =>
       lowerQuery.includes(synonym.toLowerCase())
     );
-    
     if (hasMatch) {
-      // Add all synonyms from matching groups
       expandedTerms.push(...synonyms);
     }
   }
-  
-  // Extract price constraints
+
   const maxPrice = extractMaxPrice(lowerQuery);
-  
+
   return {
-    expandedTerms: [...new Set(expandedTerms)], // Remove duplicates
-    maxPrice
+    expandedTerms: [...new Set(expandedTerms)],
+    maxPrice,
   };
 }
 
@@ -100,57 +95,26 @@ export function scoreProductForQuery(product: ProductCard, query: string): numbe
   const queryTerms = lowerQuery.split(/\s+/).filter(term => term.length > 0);
   
   let score = 0;
-  
-  // Exact phrase match in title (highest weight)
-  if (product.title?.toLowerCase().includes(lowerQuery)) {
-    score += 100;
-  }
-  
-  // Exact phrase match anywhere
-  if (searchableText.includes(lowerQuery)) {
-    score += 50;
-  }
-  
-  // Individual term matching with different weights
+
+  if (product.title?.toLowerCase().includes(lowerQuery)) score += 100;
+  if (searchableText.includes(lowerQuery)) score += 50;
+
   for (const term of queryTerms) {
-    if (term.length < 2) continue; // Skip very short terms
-    
-    // Title matches (high weight)
-    if (product.title?.toLowerCase().includes(term)) {
-      score += 20;
-    }
-    
-    // Brand matches
-    if (product.brand?.toLowerCase().includes(term)) {
-      score += 15;
-    }
-    
-    // Category matches
-    if (product.category?.toLowerCase().includes(term)) {
-      score += 10;
-    }
-    
-    // Description matches
-    if (product.description?.toLowerCase().includes(term)) {
-      score += 5;
-    }
-    
-    // Note: ProductCard doesn't include tags field
-    // Tag matching could be added if tags are included in ProductCard in the future
+    if (term.length < 2) continue;
+    if (product.title?.toLowerCase().includes(term)) score += 20;
+    if (product.brand?.toLowerCase().includes(term)) score += 15;
+    if (product.category?.toLowerCase().includes(term)) score += 10;
+    if (product.description?.toLowerCase().includes(term)) score += 5;
   }
-  
-  // Boost for semantic similarity using synonyms
+
   const semanticHints = extractSemanticHints(lowerQuery);
   for (const expandedTerm of semanticHints.expandedTerms) {
     if (expandedTerm !== lowerQuery && searchableText.includes(expandedTerm.toLowerCase())) {
-      score += 3; // Lower weight for synonym matches
+      score += 3;
     }
   }
-  
-  // Boost for popular/high-rated products (if rating available)
-  if (product.rating && product.rating > 4) {
-    score += 2;
-  }
+
+  if (product.rating && product.rating > 4) score += 2;
   
   return score;
 }

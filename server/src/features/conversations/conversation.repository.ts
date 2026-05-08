@@ -10,12 +10,7 @@ export type ConversationMessagesPage = {
   hasMore: boolean;
 };
 
-/**
- * SQLite-based repository for conversations and messages.
- * This handles data persistence only - no business logic.
- */
 export class ConversationRepository {
-  
   listConversations(): ConversationSummary[] {
     const stmt = db.prepare(`
       SELECT 
@@ -48,7 +43,6 @@ export class ConversationRepository {
   }
 
   getConversationById(id: string): Conversation | null {
-    // Get conversation basic info
     const conversationStmt = db.prepare(`
       SELECT id, title, created_at, updated_at 
       FROM conversations 
@@ -66,7 +60,6 @@ export class ConversationRepository {
       return null;
     }
 
-    // Get messages for this conversation
     const messagesStmt = db.prepare(`
       SELECT id, role, content, products_json, created_at
       FROM messages 
@@ -90,7 +83,6 @@ export class ConversationRepository {
         createdAt: row.created_at,
       };
 
-      // Deserialize products if present
       if (row.products_json) {
         try {
           message.products = JSON.parse(row.products_json) as ProductCard[];
@@ -225,13 +217,11 @@ export class ConversationRepository {
   }
 
   addMessage(conversationId: string, message: ChatMessage): Conversation | null {
-    // Serialize products to JSON if present
     let productsJson: string | null = null;
     if (message.products && message.products.length > 0) {
       productsJson = JSON.stringify(message.products);
     }
 
-    // Insert message
     const insertStmt = db.prepare(`
       INSERT INTO messages (id, conversation_id, role, content, products_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -246,10 +236,8 @@ export class ConversationRepository {
       message.createdAt
     );
 
-    // Update conversation's updated_at timestamp
     this.touchConversation(conversationId);
 
-    // Return the full conversation with messages
     return this.getConversationById(conversationId);
   }
 

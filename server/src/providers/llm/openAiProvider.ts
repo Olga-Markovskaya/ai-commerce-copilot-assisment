@@ -33,31 +33,21 @@ export class OpenAiProvider implements LlmProvider {
 
   async generateAssistantReply(input: GenerateAssistantReplyInput): Promise<string> {
     try {
-      // Build messages array with system prompt and conversation history
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { 
-          role: "system", 
-          content: input.systemPrompt || SHOPPING_ASSISTANT_SYSTEM_PROMPT 
-        }
+        {
+          role: "system",
+          content: input.systemPrompt || SHOPPING_ASSISTANT_SYSTEM_PROMPT,
+        },
       ];
 
-      // Add conversation history if provided
       if (input.conversationHistory) {
         input.conversationHistory.forEach(msg => {
-          messages.push({
-            role: msg.role,
-            content: msg.content
-          });
+          messages.push({ role: msg.role, content: msg.content });
         });
       }
 
-      // Add the user's current message
-      messages.push({
-        role: "user",
-        content: input.userPrompt
-      });
+      messages.push({ role: "user", content: input.userPrompt });
 
-      // Call OpenAI API
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: messages,
@@ -116,17 +106,12 @@ Extract intent as JSON:`;
         userPrompt,
       });
 
-      // Parse the JSON response
       try {
-        const cleanResponse = response.trim();
-        const intent = JSON.parse(cleanResponse) as AssistantIntent;
-        
-        // Validate the response has a valid type
+        const intent = JSON.parse(response.trim()) as AssistantIntent;
         if (!intent.type || !['product_search', 'greeting', 'clarification_needed', 'general_chat'].includes(intent.type)) {
           console.warn("Invalid intent type from OpenAI, falling back to general_chat");
           return { type: "general_chat" };
         }
-        
         return intent;
       } catch (parseError) {
         console.error("Failed to parse OpenAI intent JSON:", parseError, "Response:", response);
@@ -135,7 +120,6 @@ Extract intent as JSON:`;
 
     } catch (error) {
       console.error("OpenAI intent extraction error:", error);
-      // Fallback to general chat on any error
       return { type: "general_chat" };
     }
   }

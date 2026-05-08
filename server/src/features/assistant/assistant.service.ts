@@ -17,7 +17,6 @@ export class AssistantService {
   async handleUserMessage(request: ProcessChatRequest): Promise<ProcessChatResponse> {
     const { conversationId, userMessage } = request;
 
-    // Validate inputs
     if (!conversationId || !userMessage?.trim()) {
       throw HttpError.badRequest("Missing conversationId or userMessage");
     }
@@ -29,22 +28,20 @@ export class AssistantService {
       );
     }
 
-    // Find conversation
     const conversation = this.conversationService.getConversation(conversationId);
     if (!conversation) {
       throw HttpError.notFound("Conversation not found");
     }
 
-    // Update conversation title if this is the first user message (reads snapshot, no DB write yet)
     await this.updateTitleIfNeeded(conversation, userMessage);
 
-    // Process the message — the expensive async step (OpenAI / product retrieval)
     const assistantReply = await this.orchestrator.processUserMessage({
       conversationId,
       userMessage: userMessage.trim(),
-      recentMessages: conversation.messages.slice(-3).map((m): RecentMessage => ({
+      recentMessages: conversation.messages.slice(-6).map((m): RecentMessage => ({
         role: m.role as "user" | "assistant",
         content: m.content,
+        products: m.products,
       })),
     });
 
@@ -61,7 +58,6 @@ export class AssistantService {
       throw HttpError.internal("Failed to persist conversation");
     }
 
-    // Find the assistant message we just added
     const assistantMessage = finalConversation.messages[finalConversation.messages.length - 1];
 
     return {
@@ -72,7 +68,6 @@ export class AssistantService {
   }
 
   private async updateTitleIfNeeded(conversation: Conversation, userMessage: string): Promise<void> {
-    // Use the pre-add snapshot: if it has zero user messages, the current message is the first.
     const isFirstUserMessage = conversation.title === "New chat" &&
       conversation.messages.filter(m => m.role === "user").length === 0;
 

@@ -2,7 +2,6 @@ import { createApp } from "./app.js";
 import { config } from "./config/env.js";
 import { runMigrations } from "./db/migrations.js";
 
-// Initialize database
 runMigrations();
 
 const app = createApp();

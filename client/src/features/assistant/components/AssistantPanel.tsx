@@ -24,7 +24,7 @@ const MIN_PANEL_HEIGHT = 520;
 const MAX_PANEL_HEIGHT = 900;
 const NARROW_THRESHOLD = 600;
 const VIEWPORT_MARGIN = 16;
-const VERTICAL_MARGIN = 40; // Total vertical margin (top + bottom)
+const VERTICAL_MARGIN = 40; // top + bottom combined
 const MOBILE_QUERY = "(max-width: 700px)";
 
 function getViewportBasedPanelHeight(): number {
@@ -101,24 +101,21 @@ export function AssistantPanel() {
     startY: 0,
     startWidth: 0,
   });
-  
-  // Current values from Zustand
+
   const position = useAssistantStore((state) => state.panelPosition);
   const panelSize = useAssistantStore((state) => state.panelSize);
   const setPanelPosition = useAssistantStore((state) => state.setPanelPosition);
   const setPanelWidth = useAssistantStore((state) => state.setPanelWidth);
-  
-  // Refs to avoid stale closures
+
   const panelPositionRef = useRef<PanelPosition | null>(null);
   const panelWidthRef = useRef<number>(DEFAULT_PANEL_WIDTH);
-  
+
   const isMobile = useIsMobileAssistant();
   const [panelHeight, setPanelHeight] = useState(() => getViewportBasedPanelHeight());
-  
+
   const currentWidth = panelSize?.width || DEFAULT_PANEL_WIDTH;
   const isNarrowMode = !isMobile && currentWidth < NARROW_THRESHOLD;
 
-  // Keep refs synced with latest Zustand values
   panelPositionRef.current = position;
   panelWidthRef.current = currentWidth;
 
@@ -129,14 +126,13 @@ export function AssistantPanel() {
 
     if (!position) {
       setPanelPosition(getDefaultPanelPosition(currentWidth));
-      return; // Early return after setting initial position to avoid other operations
+      return;
     }
 
     if (!panelSize) {
       setPanelWidth(DEFAULT_PANEL_WIDTH);
     }
 
-    // Ensure panel height is updated based on current viewport
     const currentHeight = getViewportBasedPanelHeight();
     if (currentHeight !== panelHeight) {
       setPanelHeight(currentHeight);
@@ -152,7 +148,6 @@ export function AssistantPanel() {
       const newHeight = getViewportBasedPanelHeight();
       setPanelHeight(newHeight);
 
-      // Only clamp position if not currently interacting
       if (interactionRef.current.mode === "idle" && position && panelRef.current) {
         const clampedPosition = clampPanelPosition(position, panelRef.current);
         if (clampedPosition.x !== position.x || clampedPosition.y !== position.y) {
@@ -178,12 +173,10 @@ export function AssistantPanel() {
       const nextX = interaction.startX + deltaX;
       const nextY = interaction.startY + deltaY;
 
-      // Clamp to viewport with 12px margins
       const currentWidth = panelWidthRef.current;
       const clampedX = Math.max(12, Math.min(nextX, window.innerWidth - currentWidth - 12));
       const clampedY = Math.max(12, Math.min(nextY, window.innerHeight - panelHeight - 12));
 
-      // Only update if position changed
       const currentPos = panelPositionRef.current;
       if (!currentPos || currentPos.x !== clampedX || currentPos.y !== clampedY) {
         setPanelPosition({ x: clampedX, y: clampedY });
@@ -191,12 +184,10 @@ export function AssistantPanel() {
     } else if (interaction.mode === "resize-right") {
       const nextWidth = interaction.startWidth + deltaX;
 
-      // Clamp width and ensure it fits in viewport
       const currentPos = panelPositionRef.current;
       const maxWidth = currentPos ? window.innerWidth - currentPos.x - 12 : MAX_PANEL_WIDTH;
       const clampedWidth = Math.max(MIN_PANEL_WIDTH, Math.min(nextWidth, MAX_PANEL_WIDTH, maxWidth));
 
-      // Only update if width changed
       const currentWidth = panelWidthRef.current;
       if (currentWidth !== clampedWidth) {
         setPanelWidth(clampedWidth);
@@ -207,11 +198,9 @@ export function AssistantPanel() {
       const nextX = interaction.startX + deltaX;
       const nextWidth = rightEdge - nextX;
 
-      // Clamp constraints
       let clampedX = Math.max(12, nextX);
       let clampedWidth = Math.max(MIN_PANEL_WIDTH, Math.min(nextWidth, MAX_PANEL_WIDTH));
-      
-      // If width hits limits, adjust x to keep right edge stable
+
       if (nextWidth < MIN_PANEL_WIDTH) {
         clampedX = rightEdge - MIN_PANEL_WIDTH;
         clampedWidth = MIN_PANEL_WIDTH;
@@ -220,10 +209,8 @@ export function AssistantPanel() {
         clampedWidth = MAX_PANEL_WIDTH;
       }
 
-      // Final x clamp
       clampedX = Math.max(12, clampedX);
 
-      // Only update if values changed
       const currentPos = panelPositionRef.current;
       const currentWidth = panelWidthRef.current;
       
@@ -317,8 +304,6 @@ export function AssistantPanel() {
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
-      
-      // Clean up interaction state and styles
       interactionRef.current.mode = "idle";
       document.body.style.userSelect = "";
       document.body.style.cursor = "";

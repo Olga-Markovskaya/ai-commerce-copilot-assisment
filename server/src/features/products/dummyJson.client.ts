@@ -43,7 +43,6 @@ export class DummyJsonClient {
   }
 
   async fetchProducts(params: DummyJsonFetchParams = {}): Promise<RawDummyJsonProductsResponse> {
-    // Handle base URL that may or may not already include /products path
     const baseUrl = this.baseUrl.endsWith('/products') ? this.baseUrl : `${this.baseUrl}/products`;
     const url = new URL(baseUrl);
     
@@ -63,7 +62,6 @@ export class DummyJsonClient {
   }
 
   async searchProducts(params: DummyJsonSearchParams): Promise<RawDummyJsonProductsResponse> {
-    // Handle base URL that may or may not already include /products path
     const baseUrl = this.baseUrl.endsWith('/products') ? this.baseUrl : `${this.baseUrl}/products`;
     const url = new URL(`${baseUrl}/search`);
     
@@ -82,7 +80,6 @@ export class DummyJsonClient {
   }
 
   async fetchProductsByCategory(category: string, params: DummyJsonFetchParams = {}): Promise<RawDummyJsonProductsResponse> {
-    // Handle base URL that may or may not already include /products path
     const baseUrl = this.baseUrl.endsWith('/products') ? this.baseUrl : `${this.baseUrl}/products`;
     const url = new URL(`${baseUrl}/category/${encodeURIComponent(category)}`);
     
@@ -100,7 +97,6 @@ export class DummyJsonClient {
   }
 
   async fetchProductById(id: number): Promise<RawDummyJsonProduct> {
-    // Handle base URL that may or may not already include /products path
     const baseUrl = this.baseUrl.endsWith('/products') ? this.baseUrl : `${this.baseUrl}/products`;
     const url = `${baseUrl}/${id}`;
     

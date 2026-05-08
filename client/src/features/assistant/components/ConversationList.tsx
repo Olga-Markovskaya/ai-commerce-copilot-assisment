@@ -67,7 +67,11 @@ export function ConversationList() {
           </div>
         ) : (
           conversations.map((conversation) => (
-            <ConversationListItem key={conversation.id} conversation={conversation} />
+            <ConversationListItem
+              key={conversation.id}
+              conversation={conversation}
+              isLastConversation={conversations.length <= 1}
+            />
           ))
         )}
       </div>

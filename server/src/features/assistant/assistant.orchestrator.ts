@@ -4,6 +4,7 @@ import { MessagePrecheck } from "./messagePrecheck.js";
 import { IntentClassifier } from "./intentClassifier.js";
 import { AssistantResponseBuilder } from "./assistantResponseBuilder.js";
 import type { AssistantReply, RecentMessage } from "./assistant.types.js";
+import type { ProductCard } from "../products/product.types.js";
 import type { AssistantIntent } from "./intent.types.js";
 import { OpenAiProvider } from "../../providers/llm/openAiProvider.js";
 import {
@@ -18,19 +19,8 @@ import {
   mentionsGroundedProduct,
 } from "./assistantUtils.js";
 
-/** Return type of ShoppingIntentEnhancer.enhance() */
 type EnhancedIntent = ReturnType<ShoppingIntentEnhancer["enhance"]>;
 
-/**
- * Main orchestration layer for processing user messages.
- *
- * Decision flow:
- *   1. MessagePrecheck    — instant exit for greetings / acks / empty input
- *   2. Intelligence layer — runs early (sync, no I/O) to understand shopping intent
- *   3. IntentClassifier   — rule-based keyword classification
- *   4. Routing decision   — intelligence can promote general_chat → product_search
- *   5. Response building  — LLM or rule-based
- */
 export class AssistantOrchestrator {
   private productSearchService: ProductSearchService;
   private intentClassifier: IntentClassifier;
@@ -38,12 +28,6 @@ export class AssistantOrchestrator {
   private openAiProvider?: OpenAiProvider;
   private shoppingIntentEnhancer: ShoppingIntentEnhancer;
 
-  /**
-   * @param deps - Optional dependency overrides. When provided, automatic
-   *   service-container and OpenAI initialization is skipped entirely, making
-   *   the orchestrator safe to instantiate in unit tests without network/SQLite.
-   *   Omit `openAiProvider` (or pass `undefined`) to run in rule-based-only mode.
-   */
   constructor(deps?: {
     productSearchService?: ProductSearchService;
     openAiProvider?: OpenAiProvider;
@@ -55,11 +39,8 @@ export class AssistantOrchestrator {
     this.shoppingIntentEnhancer = new ShoppingIntentEnhancer();
 
     if (deps !== undefined) {
-      // Explicit deps provided (test / DI mode): use what was given.
-      // `openAiProvider` defaults to undefined → rule-based fallback for all LLM ops.
       this.openAiProvider = deps.openAiProvider;
     } else {
-      // Production mode: attempt automatic initialization from environment.
       try {
         this.openAiProvider = new OpenAiProvider();
         console.log("✅ OpenAI provider initialized");
@@ -77,22 +58,19 @@ export class AssistantOrchestrator {
   }): Promise<AssistantReply> {
     const { userMessage, recentMessages = [] } = input;
 
-    // Extract plain content strings for components that only need text (no roles).
     const recentContents = recentMessages.map((m) => m.content);
 
-    // ── Step 1: MessagePrecheck ───────────────────────────────────────────────
-    // Instant classification for greetings, acknowledgments, empty input.
-    // These bypass both the intelligence layer and product search entirely.
+    const followUpReply = this.tryHandleProductContextFollowUp(userMessage, recentMessages);
+    if (followUpReply) {
+      return followUpReply;
+    }
+
     const precheckResult = MessagePrecheck.check(userMessage);
     if (precheckResult) {
       console.log(`🔍 Pre-check classified: ${precheckResult.type}`);
       return this.responseBuilder.buildResponse(precheckResult);
     }
 
-    // ── Step 2: Intelligence layer ────────────────────────────────────────────
-    // Runs early — synchronous, no I/O, no OpenAI.
-    // Detects shopping intent from natural language before keyword classification,
-    // enabling queries like "something for manicure" or "nail polish" to reach search.
     let enhanced: EnhancedIntent | undefined;
     try {
       enhanced = this.shoppingIntentEnhancer.enhance({ userMessage, recentMessages: recentContents });
@@ -103,30 +81,21 @@ export class AssistantOrchestrator {
       console.log("🔁 Intelligence layer failed, proceeding with classifier only:", error);
     }
 
-    // ── Step 3: Rule-based intent classification ──────────────────────────────
     const intent = this.intentClassifier.classify({
       userMessage,
       conversationContext: { recentMessages: recentContents },
     });
     console.log(`🎯 Intent classified: ${intent.type}`);
 
-    // ── Step 4: Routing ───────────────────────────────────────────────────────
-
-    // Greetings are always handled directly (precheck already catches most;
-    // this handles edge cases like "Greetings!" that slip through).
     if (intent.type === "greeting") {
       return this.handleGreeting(intent);
     }
 
-    // IntentClassifier's own clarification_needed (vague keyword patterns).
     if (intent.type === "clarification_needed") {
       return this.handleClarificationNeeded(intent, recentMessages);
     }
 
-    // Classifier confirmed product search intent.
     if (intent.type === "product_search") {
-      // Intelligence layer may still request clarification for queries that are
-      // too vague to search usefully (e.g. "find a gift" with no recipient/budget).
       if (enhanced?.needsClarification) {
         console.log("🧠 Intelligence requests clarification");
         return this.handleClarificationNeeded(
@@ -142,8 +111,6 @@ export class AssistantOrchestrator {
       return this.handleProductSearch(intent, recentMessages, userMessage, enhanced);
     }
 
-    // Classifier said general_chat. Intelligence layer can promote if it found
-    // concrete product signals (category synonyms or product terms matched).
     if (enhanced && !enhanced.needsClarification) {
       const hasShoppingSignal =
         enhanced.analysis.candidateCategories.length > 0 ||
@@ -153,8 +120,6 @@ export class AssistantOrchestrator {
         console.log(
           `🧠 Intelligence promoted to product_search (categories=[${enhanced.analysis.candidateCategories.join(",")}])`,
         );
-        // Build a synthetic intent from the enhanced params so the rule-based
-        // response builder has category/price context if LLM is unavailable.
         const promotedIntent: AssistantIntent & { type: "product_search" } = {
           type: "product_search",
           query: enhanced.searchParams?.query,
@@ -166,8 +131,6 @@ export class AssistantOrchestrator {
       }
     }
 
-    // LLM fallback: for messages that slip past both the classifier and intelligence
-    // layer (e.g. phrased in a way no keyword or synonym catches).
     if (this.openAiProvider && this.looksLikeProductQuery(userMessage)) {
       console.log("🤖 LLM fallback for ambiguous intent");
       try {
@@ -191,6 +154,151 @@ export class AssistantOrchestrator {
     }
 
     return this.handleGeneralChat({ type: "general_chat" });
+  }
+
+  private tryHandleProductContextFollowUp(
+    userMessage: string,
+    recentMessages: RecentMessage[],
+  ): AssistantReply | null {
+    const message = userMessage.toLowerCase().trim();
+
+    const isFollowUp = this.isProductContextFollowUp(message);
+    if (!isFollowUp) return null;
+
+    const contexts = this.collectAssistantProductContexts(recentMessages);
+    if (contexts.length === 0) {
+      return this.responseBuilder.buildResponse({
+        type: "clarification_needed",
+        question:
+          "I can compare or filter the previously shown products, but I don’t see any product cards in this conversation yet. Which product are you shopping for?",
+      });
+    }
+
+    const getPreferredBaseProducts = (minSize: number): ProductCard[] => {
+      // Prefer the most recent *primary* (broad) result set for ranking/comparison ops.
+      // Fall back to a broader earlier set if the selected set is too small.
+      const primary = contexts.find((c) => c.kind === "primary");
+      const selected = primary?.products ?? contexts[0]!.products;
+      if (selected.length >= minSize) return selected;
+
+      const broader = contexts.find((c) => c.products.length >= minSize);
+      return broader?.products ?? selected;
+    };
+
+    const latestSet = contexts[0]!.products;
+
+    if (/\b(best rating|highest rated|top rated)\b/i.test(message) || /\bwhich one\b/i.test(message)) {
+      const base = getPreferredBaseProducts(1);
+      const best = [...base]
+        .sort((a, b) => b.rating - a.rating || a.id - b.id)
+        .slice(0, 1);
+      return {
+        content: `From the products shown above, the highest-rated option is "${best[0]!.title}".`,
+        products: best,
+      };
+    }
+
+    if (/\b(cheapest|lowest price|lowest-priced)\b/i.test(message)) {
+      const n = this.extractTopN(message) ?? Math.min(3, getPreferredBaseProducts(1).length);
+      const base = getPreferredBaseProducts(n);
+      const cheapest = [...base]
+        .sort((a, b) => a.price - b.price || a.id - b.id)
+        .slice(0, n);
+      return {
+        content: `Here are the cheapest options from the products shown above.`,
+        products: cheapest,
+      };
+    }
+
+    if (/\b(compare|top\s*\d+|top two|top 2)\b/i.test(message)) {
+      const n = this.extractTopN(message) ?? 2;
+      const base = getPreferredBaseProducts(n);
+      const top = base.slice(0, Math.min(n, base.length));
+      if (top.length < 2) {
+        return {
+          content: `I only have one product card in the current set, so there isn’t much to compare.`,
+          products: top,
+        };
+      }
+      const [a, b] = top;
+      return {
+        content:
+          `Quick comparison (from the shown products): "${a.title}" vs "${b.title}". ` +
+          `One is cheaper at $${Math.min(a.price, b.price)} and the stronger reviews are ${a.rating >= b.rating ? `with "${a.title}"` : `with "${b.title}"`}.`,
+        products: top,
+      };
+    }
+
+    if (/\b(shown products?|product cards?|these products?|from above|from these)\b/i.test(message)) {
+      return {
+        content:
+          "Got it — I’ll only use the products shown in the cards above. What would you like to do: compare, pick the best-rated, or filter by cheapest?",
+        products: latestSet,
+      };
+    }
+
+    return this.responseBuilder.buildResponse({
+      type: "clarification_needed",
+      question:
+        "Do you want me to compare them, pick the best-rated, or show the cheapest options from the products above?",
+    });
+  }
+
+  private isProductContextFollowUp(message: string): boolean {
+    const patterns = [
+      /\bwhich one\b/i,
+      /\b(best rating|highest rated|top rated)\b/i,
+      /\bcheapest|lowest price|lowest-priced\b/i,
+      /\bcompare\b/i,
+      /\btop\s*\d+\b/i,
+      /\bshown products?\b/i,
+      /\bproduct cards?\b/i,
+      /\bthese products?\b/i,
+      /\bfrom above\b/i,
+      /\bfrom these\b/i,
+      /\boptions\b/i,
+    ];
+    return patterns.some((p) => p.test(message));
+  }
+
+  private collectAssistantProductContexts(
+    recentMessages: RecentMessage[],
+  ): Array<{ products: ProductCard[]; kind: "primary" | "followup" }> {
+    const contexts: Array<{ products: ProductCard[]; kind: "primary" | "followup" }> = [];
+
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+      const msg = recentMessages[i]!;
+      if (msg.role !== "assistant") continue;
+      if (!Array.isArray(msg.products) || msg.products.length === 0) continue;
+
+      contexts.push({
+        products: msg.products,
+        kind: this.isLikelyFollowUpSubset(msg.content) ? "followup" : "primary",
+      });
+    }
+
+    return contexts;
+  }
+
+  private isLikelyFollowUpSubset(content: string): boolean {
+    const c = content.toLowerCase();
+    return (
+      c.includes("from the products shown above") ||
+      c.includes("cheapest options from the products shown above") ||
+      c.includes("quick comparison (from the shown products)") ||
+      c.includes("i’ll only use the products shown") ||
+      c.includes("i only have one product card in the current set")
+    );
+  }
+
+  private extractTopN(message: string): number | undefined {
+    const m = message.match(/\btop\s*(\d+)\b/i);
+    if (m?.[1]) {
+      const n = parseInt(m[1], 10);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    }
+    if (/\btop two\b/i.test(message)) return 2;
+    return undefined;
   }
 
   private async handleGreeting(

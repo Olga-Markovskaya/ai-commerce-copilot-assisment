@@ -5,10 +5,7 @@ import type {
   ShoppingConfidence,
 } from "./shoppingIntent.types.js";
 
-/**
- * DummyJSON catalog categories with their natural-language synonyms.
- * Used for mapping user language to searchable product categories.
- */
+/** DummyJSON catalog categories + natural-language synonyms. */
 const CATEGORY_SYNONYMS: Record<string, string[]> = {
   "beauty": [
     "cosmetics", "makeup", "mascara", "eyeshadow", "lipstick",
@@ -67,13 +64,13 @@ const CATEGORY_SYNONYMS: Record<string, string[]> = {
   "mens-watches": ["watch for men", "men watch"],
 };
 
-/** Gift-boosted categories for women recipients */
+/** Gift-boosted categories for women recipients. */
 const GIFT_WOMEN_CATEGORIES = [
   "fragrances", "beauty", "skin-care",
   "womens-bags", "womens-jewellery", "womens-watches",
 ];
 
-/** Gift-boosted categories for men recipients */
+/** Gift-boosted categories for men recipients. */
 const GIFT_MEN_CATEGORIES = [
   "fragrances", "mens-watches", "mens-shirts", "mens-shoes", "sunglasses",
 ];
@@ -87,15 +84,7 @@ const MEN_RECIPIENTS: ShoppingRecipient[] = ["husband", "boyfriend", "dad"];
 /** Gift-like occasions that trigger recipient-based category boosting */
 const GIFT_OCCASIONS: ShoppingOccasion[] = ["gift", "birthday", "anniversary"];
 
-/**
- * Checks whether a synonym appears in the query.
- *
- * Multi-word synonyms ("nail polish", "office chair") use plain substring matching —
- * phrases are specific enough that false positives are not a concern.
- *
- * Single-word synonyms ("car", "top", "bike") use word-boundary matching to prevent
- * incidental substring hits (e.g. "car" inside "product cards", "top" inside "laptop").
- */
+/** Multi-word synonyms use substring match; single words use word boundaries. */
 function matchesSynonym(query: string, syn: string): boolean {
   if (syn.includes(" ")) return query.includes(syn);
   // Escape any regex-special characters in the synonym before building the pattern
@@ -103,10 +92,7 @@ function matchesSynonym(query: string, syn: string): boolean {
   return new RegExp(`\\b${escaped}\\b`).test(query);
 }
 
-/**
- * Remove shorter terms that are already covered by a longer term in the list.
- * E.g. ["office chair", "chair"] → ["office chair"]
- */
+/** Remove shorter terms covered by longer terms (e.g. "chair" under "office chair"). */
 function deduplicateBySubstring(terms: string[]): string[] {
   const sorted = [...terms].sort((a, b) => b.length - a.length);
   const result: string[] = [];
@@ -118,11 +104,6 @@ function deduplicateBySubstring(terms: string[]): string[] {
   return result;
 }
 
-/**
- * Rule-based, deterministic analyzer that converts a natural-language
- * shopping message into a structured ShoppingIntentAnalysis.
- * Never calls external services or OpenAI.
- */
 export class ShoppingIntentAnalyzer {
   analyze(input: {
     userMessage: string;
@@ -130,9 +111,7 @@ export class ShoppingIntentAnalyzer {
   }): ShoppingIntentAnalysis {
     const { userMessage, recentMessages } = input;
 
-    // If the current message looks like a partial clarification reply (e.g. "for my wife"
-    // after "gift"), merge the previous shopping context into the analysis text.
-    // originalQuery stays as the raw userMessage — only internal extraction is enriched.
+    // Merge short prior context for partial clarification replies (e.g. "for my wife").
     const analysisText = this.buildAnalysisText(userMessage, recentMessages);
     const normalizedQuery = this.normalize(analysisText);
 
@@ -181,22 +160,7 @@ export class ShoppingIntentAnalyzer {
     };
   }
 
-  /**
-   * Combines current message with a previous shopping context message when the
-   * current message looks like a partial clarification reply.
-   *
-   * Examples:
-   *   prev="gift"             + current="for my wife"  → "gift for my wife"
-   *   prev="gift for wife"    + current="under $100"   → "gift for wife under $100"
-   *   prev="birthday gift"    + current="for husband"  → "birthday gift for husband"
-   *
-   * Safe guards:
-   *   - Only fires when current message is a recognisable partial answer pattern.
-   *   - Only uses previous messages that are short (≤12 words) and contain shopping
-   *     signals — excludes long recommendation texts and assistant clarification
-   *     questions (which end with "?").
-   *   - Returns original userMessage unchanged when no suitable context is found.
-   */
+  /** Combines current message with prior short shopping context when appropriate. */
   private buildAnalysisText(userMessage: string, recentMessages?: string[]): string {
     const normalized = this.normalize(userMessage);
 
@@ -217,11 +181,7 @@ export class ShoppingIntentAnalyzer {
     return `${prevContext.trim()} ${userMessage.trim()}`;
   }
 
-  /**
-   * Returns true when the message is a short fragment that provides one piece
-   * of shopping context (budget, recipient, or occasion) without being a
-   * complete standalone query.
-   */
+  /** True when the message is a short fragment (budget/recipient/occasion). */
   private isPartialAnswer(normalized: string): boolean {
     if (normalized.split(" ").length > 8) return false;
 
@@ -246,10 +206,7 @@ export class ShoppingIntentAnalyzer {
     return false;
   }
 
-  /**
-   * Returns true when a message contains recognisable shopping-intent signals.
-   * Used to identify previous user turns worth merging as context.
-   */
+  /** Detects shopping-intent signals in prior short user turns. */
   private hasShoppingSignals(message: string): boolean {
     const lower = message.toLowerCase();
     return (
@@ -380,7 +337,6 @@ export class ShoppingIntentAnalyzer {
     productTerms: string[];
     expandedTerms: string[];
   } {
-    // Match synonyms (sorted longest-first to prefer specific phrases)
     const matchedCategories = new Map<string, string[]>();
 
     for (const [category, synonyms] of Object.entries(CATEGORY_SYNONYMS)) {
@@ -396,7 +352,6 @@ export class ShoppingIntentAnalyzer {
       }
     }
 
-    // Gift-based category boosts when recipient is known
     const isGiftOccasion = GIFT_OCCASIONS.includes(occasion);
     if (isGiftOccasion) {
       const boostList = WOMEN_RECIPIENTS.includes(recipient)
@@ -414,7 +369,6 @@ export class ShoppingIntentAnalyzer {
 
     const candidateCategories = [...matchedCategories.keys()];
 
-    // productTerms = synonyms directly matched in the query (not gift boosts)
     const rawProductTerms: string[] = [];
     for (const synonyms of matchedCategories.values()) {
       for (const syn of synonyms) {
@@ -425,7 +379,6 @@ export class ShoppingIntentAnalyzer {
     }
     const productTerms = deduplicateBySubstring(rawProductTerms);
 
-    // expandedTerms = synonyms from matched categories not already in productTerms
     const expandedTerms: string[] = [];
     for (const cat of candidateCategories) {
       for (const syn of CATEGORY_SYNONYMS[cat] ?? []) {
@@ -435,7 +388,6 @@ export class ShoppingIntentAnalyzer {
       }
     }
 
-    // detectedCategory = category with most direct (non-boost) synonym matches
     let detectedCategory: string | undefined;
     let maxDirectMatches = 0;
     for (const [cat, synonyms] of matchedCategories.entries()) {
@@ -456,11 +408,8 @@ export class ShoppingIntentAnalyzer {
     budget: { minPrice?: number; maxPrice?: number },
     occasion: ShoppingOccasion,
   ): boolean {
-    // Anything to search on → no clarification needed
     if (productTerms.length > 0) return false;
     if (candidateCategories.length > 0) return false;
-
-    // Recipient or budget gives enough context to attempt a search
     if (recipient !== "unknown") return false;
     if (budget.minPrice !== undefined || budget.maxPrice !== undefined) return false;
 

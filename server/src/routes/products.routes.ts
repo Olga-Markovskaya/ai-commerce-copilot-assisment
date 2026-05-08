@@ -4,8 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 const router = Router();
 
-// GET /api/products/search - Search products (for testing ProductSearchService)
-// NOTE: This route must come before /:id to avoid matching "search" as an ID
+// /search must come before /:id to avoid "search" matching as an ID param
 router.get("/search", asyncHandler(async (req, res) => {
   const { q: query, category, minPrice, maxPrice, sortBy, limit } = req.query;
 
@@ -25,7 +24,6 @@ router.get("/search", asyncHandler(async (req, res) => {
   res.json(result);
 }));
 
-// GET /api/products/:id - Get individual product details
 router.get("/:id", asyncHandler(async (req, res) => {
   const productId = parseInt(req.params.id as string, 10);
   

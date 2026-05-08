@@ -161,7 +161,7 @@
 }
 
 .addToCartButton {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: white;
   border: none;
   padding: 1rem 2rem;
@@ -175,7 +175,7 @@
 }
 
 .addToCartButton:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--accent-gradient-hover);
 }
 
 .addToCartButton:disabled {

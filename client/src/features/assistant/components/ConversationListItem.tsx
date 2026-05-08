@@ -4,10 +4,12 @@ import styles from "@shared/styles/assistant/conversation-list.module.css";
 
 type ConversationListItemProps = {
   conversation: ConversationSummary;
+  isLastConversation: boolean;
 };
 
 export function ConversationListItem({
   conversation,
+  isLastConversation,
 }: ConversationListItemProps) {
   const activeConversationId = useAssistantStore(
     (state) => state.activeConversationId,
@@ -33,6 +35,7 @@ export function ConversationListItem({
         type="button"
         className={styles.deleteButton}
         onClick={() => deleteConversation(conversation.id)}
+        disabled={isLastConversation}
         aria-label={`Delete ${conversation.title}`}
       >
         Delete

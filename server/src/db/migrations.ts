@@ -1,14 +1,9 @@
 import { db } from "./sqlite.js";
 
-/**
- * Simple migration system for SQLite.
- * For this take-home assignment, we don't need a complex migration framework.
- */
 export function runMigrations(): void {
   console.log("🚀 Running database migrations...");
 
   try {
-    // Create conversations table
     db.exec(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -18,7 +13,6 @@ export function runMigrations(): void {
       );
     `);
 
-    // Create messages table
     db.exec(`
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
@@ -31,7 +25,6 @@ export function runMigrations(): void {
       );
     `);
 
-    // Create indexes for better performance
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_messages_conversation_id 
       ON messages(conversation_id);

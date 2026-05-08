@@ -5,6 +5,8 @@ import type { Conversation, ChatMessage } from "../conversations/conversation.ty
 export type RecentMessage = {
   role: "user" | "assistant";
   content: string;
+  /** Present only for assistant turns that returned product cards. */
+  products?: ProductCard[];
 };
 
 export type AssistantReply = {

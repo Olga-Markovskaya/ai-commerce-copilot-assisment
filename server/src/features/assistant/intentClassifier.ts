@@ -5,15 +5,12 @@ import type { AssistantIntent, IntentExtractionInput } from "./intent.types.js";
  * Determines user intent and extracts relevant parameters.
  */
 export class IntentClassifier {
-  
-  // Product-related keywords that indicate shopping intent
   private static readonly PRODUCT_KEYWORDS = [
     "find", "search", "looking for", "need", "want", "buy", "purchase", "get", "show me",
     "product", "products", "item", "items", "shopping", "shop",
     "cheap", "affordable", "expensive", "budget", "under", "below", "less than", "max", "maximum"
   ];
   
-  // Category mapping for specific product types (using actual DummyJSON categories)
   private static readonly CATEGORY_KEYWORDS: Record<string, string[]> = {
     "beauty": ["beauty", "skincare", "skin care", "makeup", "cosmetics", "lotion", "cream"],
     "skin-care": ["skin care", "skincare products", "moisturizer", "serum"],
@@ -38,12 +35,10 @@ export class IntentClassifier {
   classify(input: IntentExtractionInput): AssistantIntent {
     const message = input.userMessage.toLowerCase().trim();
     
-    // Check if this is a product search request
     if (this.isProductSearchQuery(message)) {
       return this.extractProductSearchIntent(message);
     }
     
-    // Check if the request is too vague and needs clarification
     if (this.needsClarification(message)) {
       return {
         type: "clarification_needed",
@@ -51,7 +46,6 @@ export class IntentClassifier {
       };
     }
     
-    // Default to general chat
     return { type: "general_chat" };
   }
   
@@ -62,7 +56,6 @@ export class IntentClassifier {
   }
   
   private needsClarification(message: string): boolean {
-    // Very vague requests that mention products but lack specifics
     const vaguePatterns = [
       /^(i need|i want|looking for|find me)\s+(something|anything)\b/i,
       /^(show me|get me)\s+(nice|good|cool|great)\s+stuff$/i,
@@ -94,7 +87,6 @@ export class IntentClassifier {
 
     const intent: ProductSearchIntent = { type: "product_search" };
 
-    // Extract category
     for (const [category, keywords] of Object.entries(IntentClassifier.CATEGORY_KEYWORDS)) {
       if (keywords.some((keyword: string) => message.includes(keyword))) {
         intent.category = category;
@@ -102,7 +94,6 @@ export class IntentClassifier {
       }
     }
 
-    // Extract price constraints
     const priceConstraints = this.extractPriceConstraints(message);
     if (priceConstraints.maxPrice !== undefined) {
       intent.maxPrice = priceConstraints.maxPrice;
@@ -111,7 +102,6 @@ export class IntentClassifier {
       intent.minPrice = priceConstraints.minPrice;
     }
 
-    // Extract sorting preference
     if (message.includes("cheap") || message.includes("affordable") || message.includes("lowest price")) {
       intent.sortBy = "price_asc";
     } else if (message.includes("expensive") || message.includes("premium") || message.includes("high-end")) {
@@ -120,10 +110,8 @@ export class IntentClassifier {
       intent.sortBy = "rating_desc";
     }
 
-    // Clean query text by removing price constraint phrases
     const cleanedQuery = this.cleanQueryText(message);
     if (cleanedQuery && !intent.category) {
-      // Only set query if we don't have a category, to prefer category search
       intent.query = cleanedQuery;
     }
 
@@ -135,19 +123,16 @@ export class IntentClassifier {
   private extractPriceConstraints(message: string): { minPrice?: number; maxPrice?: number } {
     const result: { minPrice?: number; maxPrice?: number } = {};
     
-    // Patterns for maximum price
     const maxPricePatterns = [
       /(?:under|below|less than|max|maximum|up to)\s*\$?(\d+)/i,
       /\$?(\d+)\s*(?:or less|max|maximum)/i,
     ];
     
-    // Patterns for minimum price
     const minPricePatterns = [
       /(?:over|above|more than|min|minimum|at least)\s*\$?(\d+)/i,
       /\$?(\d+)\s*(?:or more|min|minimum)/i,
     ];
     
-    // Extract maximum price
     for (const pattern of maxPricePatterns) {
       const match = message.match(pattern);
       if (match) {
@@ -156,7 +141,6 @@ export class IntentClassifier {
       }
     }
     
-    // Extract minimum price
     for (const pattern of minPricePatterns) {
       const match = message.match(pattern);
       if (match) {
@@ -171,7 +155,6 @@ export class IntentClassifier {
   private cleanQueryText(message: string): string {
     let cleaned = message.toLowerCase();
     
-    // Remove price constraint phrases
     const pricePatterns = [
       /\b(?:under|below|less than|max|maximum|up to)\s*\$?\d+\b/gi,
       /\$?\d+\s*(?:or less|max|maximum|or under|or below)\b/gi,
@@ -183,7 +166,6 @@ export class IntentClassifier {
       cleaned = cleaned.replace(pattern, '');
     }
     
-    // Remove price-related words and symbols
     const priceWords = [
       'dollar', 'dollars', '$', 'price', 'cost', 'budget',
       'cheap', 'affordable', 'expensive', 'premium'
@@ -192,7 +174,6 @@ export class IntentClassifier {
     const priceWordsPattern = new RegExp('\\b(?:' + priceWords.join('|') + ')\\b', 'gi');
     cleaned = cleaned.replace(priceWordsPattern, '');
     
-    // Remove common search phrases to focus on product terms
     const commonPhrases = [
       'show me', 'find me', 'looking for', 'i need', 'i want', 
       'get me', 'search for', 'find', 'search', 'buy', 'purchase'
@@ -203,10 +184,8 @@ export class IntentClassifier {
       cleaned = cleaned.replace(regex, '');
     }
     
-    // Clean up extra spaces and trim
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     
-    // Return empty string if nothing meaningful remains
     if (cleaned.length < 2) {
       return '';
     }

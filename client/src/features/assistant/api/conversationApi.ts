@@ -1,6 +1,4 @@
-// ProductCard is defined in @lib/types because it is shared with the products
-// feature. Re-exported here so all existing assistant-internal imports remain
-// unchanged (MessageBubble, ProductCard component, ProductCarousel, etc.).
+
 import type { ProductCard } from "@lib/types";
 export type { ProductCard };
 
@@ -59,20 +57,6 @@ export class ConversationApiService {
 
     if (!response.ok) {
       throw new Error("Failed to create conversation");
-    }
-
-    const data = await response.json() as { conversation: Conversation };
-    return data.conversation;
-  }
-
-  static async fetchConversation(id: string): Promise<Conversation> {
-    const response = await fetch(`${API_BASE_URL}/api/conversations/${id}`);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error("Conversation not found");
-      }
-      throw new Error("Failed to fetch conversation");
     }
 
     const data = await response.json() as { conversation: Conversation };
